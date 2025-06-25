@@ -239,8 +239,8 @@ class OEMHandler(generic.OEMHandler):
                                     size=int(vol['CapacityBytes'])/1024//1024,
                                     status=vol['Status']['Health'],
                                     id=(cid,vol['Id'])))
-                    for type, disk_ids in vol['Links'].items():
-                        if isinstance(disk_ids,list):
+                    for item_key, disk_ids in vol['Links'].items():
+                        if isinstance(disk_ids, list) and 'drives' in item_key.lower():
                             for disk in disk_ids:
                                 if disk['@odata.id'] in cdisks:
                                     cdisks.remove(disk['@odata.id'])
@@ -265,6 +265,15 @@ class OEMHandler(generic.OEMHandler):
                         id=(cid, disk_data['Id']), status=disk_data['Oem']['Lenovo']['DriveStatus'],
                         serial=disk_data['SerialNumber'], fru=disk_data['SKU']))
         return storage.ConfigSpec(disks=standalonedisks, arrays=pools)
+
+    def check_storage_configuration(self, cfgspec=None):
+        rsp = self.webclient.grab_json_response(
+            '/api/providers/raidlink_GetStatus')
+        if rsp['return'] != 0 or rsp['status'] != 1:
+            raise pygexc.TemporaryError('Storage configuration unavailable in '
+                                        'current state (try boot to setup or '
+                                        'an OS)')
+        return True
 
     def apply_storage_configuration(self, cfgspec):
         realcfg = self.get_storage_configuration(False)
@@ -421,7 +430,6 @@ class OEMHandler(generic.OEMHandler):
             hotspares = arrayspec.hotspares
             drives = arrayspec.disks
             minimal_conditions = {
-                #Tuple contains: minimum_number, maximum_number and disk multiplier
                 "RAID0": (1,128,1),
                 "RAID1": (2,2,1),
                 "RAID1Triple": (3,3,1),
@@ -476,14 +484,21 @@ class OEMHandler(generic.OEMHandler):
     def _create_array(self, pool):
         params = self._parse_array_spec(pool)
         cid = params['controller'].split(',')[0]
-        c_capabilities = self.webclient.grab_json_response(
-            f'/redfish/v1/Systems/1/Storage/{cid}')
+        c_capabilities, code = self.webclient.grab_json_response_with_status(
+            f'/redfish/v1/Systems/1/Storage/{cid}/Volumes/Capabilities')
+        if code == 404:
+            c_capabilities, code = self.webclient.grab_json_response_with_status(
+            f'/redfish/v1/Systems/1/Storage/{cid}/Volumes/Oem/Lenovo/Capabilities')
+            if code == 404:
+                # If none of the endpoints exist, maybe it should be printed that
+                # no capabilities found, therefore default values will be used
+                # whatever they are
+                pass
         volumes = pool.volumes
         drives = [d for d in params['drives'].split("|") if d != '']
         hotspares = [h for h in params['hotspares'].split("|") if h != '']
         raidlevel = params['raidlevel']
         nameappend = 1
-        vols = []
         currvolnames = None
         currcfg = self.get_storage_configuration(False)
         for vol in volumes:
@@ -501,37 +516,55 @@ class OEMHandler(generic.OEMHandler):
                     nameappend += 1
             else:
                 name = vol.name
-            
-            # Stripsize is set to 256K here because volume capabilities do not present this value
-            # at least on 9350 controllers and certain allowed stripsizes shown by Redfish
-            # are not allowed by the controller
-            # UEFI setup shows the 256K stripsize it and is a common value
-            stripsize = vol.stripsize if vol.stripsize is not None else 262144
 
+            # Won't check against Redfish allowable values as they not trustworthy yet
+            # Some values show in Redfish, but may not be accepted by UEFI/controller or vice versa 
+            stripsize_map = {
+                '4': 4096, '4096': 4096,
+                '16': 16384, '16384': 16384,
+                '32': 32768, '32768': 32768,
+                '64': 65536, '65536': 65536,
+                '128': 131072, '131072': 131072,
+                '256': 262144, '262144': 262144,
+                '512': 524288, '524288': 524288,
+                '1024': 1048576, '1048576': 1048576
+            }
+            stripsize = stripsize_map[str(vol.stripsize).lower().replace('k','')] if vol.stripsize is not None else None
+
+            readpolicy_map = {'0': 'Off', '1': 'ReadAhead'}
             read_policy = None
             read_cache_possible = c_capabilities.get("ReadCachePolicy@Redfish.AllowableValues",[])
             if read_cache_possible:
                 if vol.read_policy is not None:
+                    if str(vol.read_policy) in readpolicy_map:
+                        vol.read_policy = readpolicy_map[str(vol.read_policy)]
                     if vol.read_policy in read_cache_possible:
                         read_policy = vol.read_policy
                     else:
                         raise pygexc.InvalidParameterValue(
                         f'{vol.read_policy} Read Cache Policy is not supported. Allowed values are: {read_cache_possible}')
             
+            writepolicy_map = {'0': 'WriteThrough', '1': 'UnprotectedWriteBack',
+                               '2': 'ProtectedWriteBack', '3': 'Off'}
             write_policy = None
             write_cache_possible = c_capabilities.get("WriteCachePolicy@Redfish.AllowableValues",[])
             if write_cache_possible:
                 if vol.write_policy is not None:
+                    if str(vol.write_policy) in writepolicy_map:
+                        vol.write_policy = writepolicy_map[str(vol.write_policy)]
                     if vol.write_policy in write_cache_possible:
                         write_policy = vol.write_policy
                     else:
                         raise pygexc.InvalidParameterValue(
                         f'{vol.write_policy} Write Cache Policy is not supported. Allowed values are: {write_cache_possible}')
 
+            defaultinit_map = {'0': 'No', '1': 'Fast', '2': 'Full'}
             default_init = None
             default_init_possible = c_capabilities.get("InitializationType@Redfish.AllowableValues",[])
             if default_init_possible:
                 if vol.default_init is not None:
+                    if str(vol.default_init) in defaultinit_map:
+                        vol.default_init = defaultinit_map[str(vol.default_init)]
                     if vol.default_init in default_init_possible:
                         default_init = vol.default_init
                     else:
@@ -633,7 +666,7 @@ class OEMHandler(generic.OEMHandler):
                 request_data["ReadCachePolicy"] = read_policy
             if write_policy:
                 request_data["WriteCachePolicy"] = write_policy
-            
+
             msg, code=self.webclient.grab_json_response_with_status(
                 f'/redfish/v1/Systems/1/Storage/{cid}/Volumes',
                 method='POST',
