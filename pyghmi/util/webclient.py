@@ -96,7 +96,7 @@ class FileDownloader(threading.Thread):
             self.exc = e
 
 
-def get_upload_form(filename, data, formname, otherfields):
+def get_upload_form(filename, data, formname, otherfields, boundary=BND):
     ffilename = filename.split('/')[-1]
     if not formname:
         formname = ffilename
@@ -114,16 +114,16 @@ def get_upload_form(filename, data, formname, otherfields):
             if isinstance(tfield, dict):
                 tfield = json.dumps(tfield)
                 xtra = '\r\nContent-Type: application/json'
-            form += (b'--' + BND
+            form += (b'--' + boundary
                      + '\r\nContent-Disposition: form-data; '
                        'name="{0}"{1}\r\n\r\n{2}\r\n'.format(
                            ofield, xtra, tfield).encode('utf-8'))
-        form += (b'--' + BND
+        form += (b'--' + boundary
                 + '\r\nContent-Disposition: form-data; '
                   'name="{0}"; filename="{1}"\r\n'.format(
                       formname, ffilename).encode('utf-8'))
         form += b'Content-Type: application/octet-stream\r\n\r\n' + data
-        form += b'\r\n--' + BND + b'--\r\n'
+        form += b'\r\n--' + boundary + b'--\r\n'
         uploadforms[filename] = form
         return form
 
@@ -332,13 +332,14 @@ class SecureHTTPConnection(httplib.HTTPConnection, object):
                      the file.
         :return:
         """
+        boundary = base64.b64encode(os.urandom(54))[:70]
         if data is None:
             data = open(filename, 'rb')
         ulhdrs = self.stdheaders.copy()
         if formwrap:
             self._upbuffer = io.BytesIO(get_upload_form(
-                filename, data, formname, otherfields))
-            ulhdrs['Content-Type'] = b'multipart/form-data; boundary=' + BND
+                filename, data, formname, otherfields, boundary))
+            ulhdrs['Content-Type'] = b'multipart/form-data; boundary=' + boundary
             ulhdrs['Content-Length'] = len(uploadforms[filename])
             self.ulsize = len(uploadforms[filename])
         else:
