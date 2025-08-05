@@ -950,8 +950,10 @@ class OEMHandler(generic.OEMHandler):
         acctattribs = {}
         usbsettings = {}
         bmchangeset = {}
+        rawchangeset = {}
         for key in changeset:
             if isinstance(changeset[key], str):
+                rawchangeset[key] = changeset[key]
                 changeset[key] = {'value': changeset[key]}
             currval = changeset[key].get('value', None)
             if key == 'password_complexity':
@@ -967,7 +969,10 @@ class OEMHandler(generic.OEMHandler):
                     elif currval and 'enabled'.startswith(currval):
                         currval = 'True'
             else:
-                currval = int(currval)
+                try:
+                    currval = int(currval)
+                except ValueError:
+                    pass
             if key.lower() in self.oemacctmap:
                 if 'Oem' not in acctattribs:
                     acctattribs['Oem'] = {'Lenovo': {}}
@@ -984,7 +989,7 @@ class OEMHandler(generic.OEMHandler):
                     'usb_forwarded_ports'):
                 usbsettings[key] = currval
             else:
-                bmchangeset[key.replace('bmc.', '')] = changeset[key]
+                bmchangeset[key.replace('bmc.', '')] = rawchangeset[key]
         if acctattribs:
             self._do_web_request(
                 '/redfish/v1/AccountService', acctattribs, method='PATCH')

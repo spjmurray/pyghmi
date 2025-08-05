@@ -1191,17 +1191,21 @@ class OEMHandler(object):
             wc.stdheaders['X-Auth-Token'] = self.xauthtoken
             self.webclient.stdheaders['X-Auth-Token'] = self.xauthtoken
 
-    def _do_web_request(self, url, payload=None, method=None, cache=True):
+    def _do_web_request(self, url, payload=None, method=None, cache=True, etag=None):
         res = None
         if cache and payload is None and method is None:
             res = self._get_cache(url)
         if res:
             return res
         wc = self.webclient.dupe()
+        if etag:
+            wc.stdheaders['If-Match'] = etag
         res = wc.grab_json_response_with_status(url, payload, method=method)
         if res[1] == 401 and 'X-Auth-Token' in self.webclient.stdheaders:
             wc.set_basic_credentials(self.username, self.password)
             self._get_session_token(wc)
+            if etag:
+                wc.stdheaders['If-Match'] = etag
             res = wc.grab_json_response_with_status(url, payload,
                                                     method=method)
         if res[1] < 200 or res[1] >= 300:
