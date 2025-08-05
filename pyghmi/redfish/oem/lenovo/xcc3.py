@@ -64,7 +64,11 @@ class SensorReading(object):
 
 class OEMHandler(generic.OEMHandler):
 
-    datacache = {}
+    def __init__(self, sysinfo, sysurl, webclient, cache, gpool=None):
+        super(OEMHandler, self).__init__(sysinfo, sysurl, webclient, cache,
+                                         gpool)
+        self.datacache = {}
+
 
     def supports_expand(self, url):
         return True
@@ -115,8 +119,8 @@ class OEMHandler(generic.OEMHandler):
             #     raise pygexc.TemporaryError(
             #         'Cannot read extended inventory during firmware update')
             if self.webclient:
-                adapterdata = self._do_bulk_requests([i['@odata.id'] for i in self.webclient.grab_json_response(
-                        '/redfish/v1/Chassis/1')['Links']['PCIeDevices']])
+                adapterdata = list(self._do_bulk_requests([i['@odata.id'] for i in self.webclient.grab_json_response(
+                        '/redfish/v1/Chassis/1')['Links']['PCIeDevices']]))
                 if adapterdata:
                     self.datacache['lenovo_cached_adapters'] = (
                         adapterdata, util._monotonic_time())
@@ -164,8 +168,21 @@ class OEMHandler(generic.OEMHandler):
                 # Could be identified also through Oem->Lenovo->FunctionClass
                 if fundata['Members'][0]['DeviceClass'] == 'NetworkController':
                     ports_data = self._get_expanded_data('{0}/Ports'.format(adata['@odata.id'].replace('PCIeDevices','NetworkAdapters')))
+                    macidx = 1
                     for port in ports_data['Members']:
-                        bdata['MAC Address {0}'.format(port['Id'])] = port['Ethernet']['AssociatedMACAddresses'][0].lower()
+                        if port.get('Ethernet', None):
+                            macs = [x for x in port['Ethernet'].get('AssociatedMACAddresses', [])]
+                            for mac in macs:
+                                label = 'MAC Address {}'.format(macidx)
+                                bdata[label] = generic._normalize_mac(mac)
+                                macidx += 1
+                        ibinfo = port.get('InfiniBand', {})
+                        if ibinfo:
+                            macs = [x for x in ibinfo.get('AssociatedPortGUIDs', [])]
+                            for mac in macs:
+                                label = 'Port GUID {}'.format(macidx)
+                                bdata[label] = mac
+                                macidx += 1
                 hwmap[aname] = bdata
             self.datacache['lenovo_cached_hwmap'] = (hwmap,
                                                      util._monotonic_time())
@@ -924,11 +941,15 @@ class OEMHandler(generic.OEMHandler):
             src, dst = currval.split(',')
             mappings.append('{}:{}'.format(src,dst))
         settings['usb_forwarded_ports'] = {'value': ','.join(mappings)}
+        cfgin = self._get_lnv_bmcstgs(self)[0]
+        for stgname in cfgin:
+            settings[f'{stgname}'] = cfgin[stgname]
         return settings
 
     def set_bmc_configuration(self, changeset):
         acctattribs = {}
         usbsettings = {}
+        bmchangeset = {}
         for key in changeset:
             if isinstance(changeset[key], str):
                 changeset[key] = {'value': changeset[key]}
@@ -963,14 +984,15 @@ class OEMHandler(generic.OEMHandler):
                     'usb_forwarded_ports'):
                 usbsettings[key] = currval
             else:
-                raise pygexc.InvalidParameterValue(
-                    '{0} not a known setting'.format(key))
+                bmchangeset[key.replace('bmc.', '')] = changeset[key]
         if acctattribs:
             self._do_web_request(
                 '/redfish/v1/AccountService', acctattribs, method='PATCH')
             self._do_web_request('/redfish/v1/AccountService', cache=False)
         if usbsettings:
             self.apply_usb_configuration(usbsettings)
+        if bmchangeset:
+            self._set_xcc3_settings(bmchangeset, self)
 
     def apply_usb_configuration(self, usbsettings):
         bmcattribs = {}
