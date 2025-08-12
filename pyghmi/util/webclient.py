@@ -24,6 +24,7 @@ import json
 import socket
 import ssl
 import threading
+import os
 
 import six
 
@@ -142,6 +143,7 @@ class SecureHTTPConnection(httplib.HTTPConnection, object):
         self.broken = False
         self.thehost = host
         self.theport = port
+        self._upbuffer = None
         try:
             httplib.HTTPConnection.__init__(self, host, port, strict=strict,
                                             **kwargs)
@@ -384,6 +386,8 @@ class SecureHTTPConnection(httplib.HTTPConnection, object):
         return body
 
     def get_upload_progress(self):
+        if self._upbuffer is None:
+            return 0.0
         return float(self._upbuffer.tell()) / float(self.ulsize)
 
     def request(self, method, url, body=None, headers=None, referer=None):
