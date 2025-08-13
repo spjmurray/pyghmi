@@ -19,6 +19,7 @@ import pyghmi.constants as pygconst
 import pyghmi.util.webclient as webclient
 import pyghmi.exceptions as exc
 import time
+import socket
 
 healthlookup = {
     'ok': pygconst.Health.Ok,
@@ -77,6 +78,37 @@ class OEMHandler(generic.OEMHandler):
 
     def get_system_configuration(self, hideadvanced=True, fishclient=None):
         return {}
+
+    def retrieve_firmware_upload_url(self):
+        # SMMv3 needs to do the non-multipart upload
+        usd = self._do_web_request('/redfish/v1/UpdateService', cache=False)
+        if usd.get('HttpPushUriTargetsBusy', False):
+                raise exc.TemporaryError('Cannot run multtiple updates to '
+                                            'same target concurrently')
+        try:
+            upurl = usd['HttpPushUri']
+        except KeyError:
+            raise exc.UnsupportedFunctionality('Redfish firmware update only supported for implementations with push update support')
+        if 'HttpPushUriTargetsBusy' in usd:
+            self._do_web_request(
+                '/redfish/v1/UpdateService',
+                {'HttpPushUriTargetsBusy': True}, method='PATCH')
+        return usd,upurl,False
+
+    def continue_update(self, uploadthread, progress):
+        # SMMv3 does not provide a response, must hardcode the continuation
+        # /redfish/v1/UpdateService/FirmwareInventory/fwuimage
+        rsp = self._do_web_request('/redfish/v1/UpdateService/FirmwareInventory/fwuimage')
+        for ri in rsp.get('RelatedItem', []):
+            targ = ri.get('@odata.id', None)
+        parms = {'Oem': {'Lenovo': {'SecureRollBack': False}}}
+        rsp = self._do_web_request('/redfish/v1/UpdateService', parms, method='PATCH')
+        targspec = {'target': targ}
+        rsp = self._do_web_request('/redfish/v1/UpdateService/Actions/UpdateService.StartUpdate', targspec)
+        monitorurl = rsp.get('@odata.id', None)
+        return self.monitor_update_progress(monitorurl, progress)
+        
+
 
     def get_diagnostic_data(self, savefile, progress=None, autosuffix=False):
         tsk = self._do_web_request(

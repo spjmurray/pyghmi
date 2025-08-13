@@ -21,6 +21,7 @@ import re
 from datetime import datetime
 from datetime import timedelta
 from dateutil import tz
+import socket
 import time
 
 import pyghmi.constants as const
@@ -1065,22 +1066,7 @@ class OEMHandler(object):
 
     def update_firmware(self, filename, data=None, progress=None, bank=None, otherfields=()):
         # disable cache to make sure we trigger the token renewal logic if needed
-        usd = self._do_web_request('/redfish/v1/UpdateService', cache=False)
-        upurl = usd.get('MultipartHttpPushUri', None)
-        ismultipart = True
-        if not upurl:
-            ismultipart = False
-            if usd.get('HttpPushUriTargetsBusy', False):
-                raise exc.TemporaryError('Cannot run multtiple updates to '
-                                            'same target concurrently')
-            try:
-                upurl = usd['HttpPushUri']
-            except KeyError:
-                raise exc.UnsupportedFunctionality('Redfish firmware update only supported for implementations with push update support')
-            if 'HttpPushUriTargetsBusy' in usd:
-                self._do_web_request(
-                    '/redfish/v1/UpdateService',
-                    {'HttpPushUriTargetsBusy': True}, method='PATCH')
+        usd, upurl, ismultipart = self.retrieve_firmware_upload_url()
         try:
             uploadthread = webclient.FileUploader(
                 self.webclient, upurl, filename, data, formwrap=ismultipart,
@@ -1105,8 +1091,19 @@ class OEMHandler(object):
                 except Exception:
                     raise Exception(uploadthread.rsp)
                 raise Exception(errmsg)
+            return self.continue_update(uploadthread, progress)
+        finally:
+            if 'HttpPushUriTargetsBusy' in usd:
+                self._do_web_request(
+                    '/redfish/v1/UpdateService',
+                    {'HttpPushUriTargetsBusy': False}, method='PATCH')
+
+    def continue_update(self, uploadthread, progress):
             rsp = json.loads(uploadthread.rsp)
             monitorurl = rsp['@odata.id']
+            return self.monitor_update_progress(monitorurl, progress)
+    
+    def monitor_update_progress(self, monitorurl, progress):
             complete = False
             phase = "apply"
             statetype = 'TaskState'
@@ -1151,11 +1148,26 @@ class OEMHandler(object):
             if not retry:
                 raise Exception('Falied to monitor update progress due to excessive timeouts')
             return 'pending'
-        finally:
+
+
+    def retrieve_firmware_upload_url(self):
+        usd = self._do_web_request('/redfish/v1/UpdateService', cache=False)
+        upurl = usd.get('MultipartHttpPushUri', None)
+        ismultipart = True
+        if not upurl:
+            ismultipart = False
+            if usd.get('HttpPushUriTargetsBusy', False):
+                raise exc.TemporaryError('Cannot run multtiple updates to '
+                                            'same target concurrently')
+            try:
+                upurl = usd['HttpPushUri']
+            except KeyError:
+                raise exc.UnsupportedFunctionality('Redfish firmware update only supported for implementations with push update support')
             if 'HttpPushUriTargetsBusy' in usd:
-                self._do_web_request(
-                    '/redfish/v1/UpdateService',
-                    {'HttpPushUriTargetsBusy': False}, method='PATCH')
+                self._do_web_request('/redfish/v1/UpdateService',
+                    {'HttpPushUriTargetsBusy': True}, method='PATCH')
+                    
+        return usd,upurl,ismultipart
 
 
     def _do_bulk_requests(self, urls, cache=True):
