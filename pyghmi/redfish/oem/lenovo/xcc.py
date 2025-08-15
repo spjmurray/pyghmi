@@ -1662,7 +1662,7 @@ class OEMHandler(generic.OEMHandler):
                     license_errors[rsp['return']])
         return self.get_licenses(fishclient)
 
-    def user_delete(self, uid):
+    def user_delete(self, uid, fishclient=None):
         userinfo = self.wc.grab_json_response('/api/dataset/imm_users')
         uidtonamemap = {}
         for user in userinfo.get('items', [{'users': []}])[0].get('users', []):

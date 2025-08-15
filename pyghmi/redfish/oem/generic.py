@@ -383,13 +383,19 @@ class OEMHandler(object):
             summary['badreadings'].append(unkinf)
         return summary
 
-    def user_delete(self, uid):
+    def user_delete(self, uid, fishclient):
         # Redfish doesn't do so well with Deleting users either...
         # Blanking the username seems to be the convention
         # First, set a bogus password in case the implementation does honor
         # blank user, at least render such an account harmless
-        self.set_user_password(uid, base64.b64encode(os.urandom(15)))
-        self.set_user_name(uid, '')
+        try:
+            accinfo = fishclient._account_url_info_by_id(uid)
+            if not accinfo:
+                raise Exception("No such account found")
+            self._do_web_request(accinfo[0], method='DELETE')
+        except Exception: # fall back to old ipmi-like behavior for such implementations
+            fishclient.set_user_password(uid, base64.b64encode(os.urandom(15)))
+            fishclient.set_user_name(uid, '')
         return True
 
     def set_bootdev(self, bootdev, persist=False, uefiboot=None,

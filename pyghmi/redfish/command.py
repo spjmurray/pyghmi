@@ -445,7 +445,7 @@ class Command(object):
         return self.oem.get_ikvm_launchdata()
 
     def user_delete(self, uid):
-        self.oem.user_delete(uid)
+        self.oem.user_delete(uid, self)
 
     def set_user_name(self, uid, name):
         """Set user name
