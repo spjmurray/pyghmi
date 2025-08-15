@@ -415,8 +415,11 @@ class Command(object):
             Operator, and ReadOnly
         """
         accinfo = self._account_url_info_by_id(uid)
-        if not accinfo:
-            raise Exception("Unable to find indicated uid")
+        if accinfo:
+            method = 'PATCH'
+        else:
+            accinfo = (self._accountserviceurl + '/Accounts', {})
+            method = 'POST'
         if privilege_level.startswith('custom.'):
             privilege_level = privilege_level.replace('custom.', '')
         for role in self._validroles:
@@ -429,7 +432,7 @@ class Command(object):
             "Password": password,
             "RoleId": privilege_level,
         }
-        self._do_web_request(accinfo[0], userinfo, method='PATCH', etag=etag)
+        self._do_web_request(accinfo[0], userinfo, method=method, etag=etag)
         return True
 
     def get_screenshot(self, outfile):
