@@ -2166,14 +2166,14 @@ class Command(object):
 
         return True
 
-    def get_firmware(self, components=()):
+    def get_firmware(self, components=(), category=None):
         """Retrieve OEM Firmware information"""
 
         self.oem_init()
         mcinfo = self.xraw_command(netfn=6, command=1)
         major, minor = struct.unpack('BB', mcinfo['data'][2:4])
         bmcver = '{0}.{1}'.format(major, hex(minor)[2:])
-        return self._oem.get_oem_firmware(bmcver, components)
+        return self._oem.get_oem_firmware(bmcver, components, category)
 
     def get_capping_enabled(self):
         """Get PSU based power capping status

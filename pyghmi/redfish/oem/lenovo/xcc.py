@@ -699,33 +699,54 @@ class OEMHandler(generic.OEMHandler):
             for diskent in adp.get('aimDisks', ()):
                 yield self._get_disk_firmware_single(diskent)
 
-    def get_firmware_inventory(self, components, fishclient):
-        sysinf = self.wc.grab_json_response('/api/dataset/sys_info')
-        for item in sysinf.get('items', {}):
-            for firm in item.get('firmware', []):
-                firminfo = {
-                    'version': firm['version'],
-                    'build': firm['build'],
-                    'date': parse_time(firm['release_date']),
-                }
-                if firm['type'] == 5:
-                    yield ('XCC', firminfo)
-                elif firm['type'] == 6:
-                    yield ('XCC Backup', firminfo)
-                elif firm['type'] == 0:
-                    yield ('UEFI', firminfo)
-                elif firm['type'] == 7:
-                    yield ('LXPM', firminfo)
-                elif firm['type'] == 8:
-                    yield ('LXPM Windows Driver Bundle', firminfo)
-                elif firm['type'] == 9:
-                    yield ('LXPM Linux Driver Bundle', firminfo)
-                elif firm['type'] == 10:
-                    yield ('LXUM', firminfo)
-        for adpinfo in self._get_agentless_firmware(components):
-            yield adpinfo
-        for adpinfo in self._get_disk_firmware(components):
-            yield adpinfo
+    def get_firmware_inventory(self, components, fishclient, category=None):
+
+        if components and 'core' in components:
+            category = 'core'
+            components = components - set(['core'])
+        if not category:
+            category = 'all'
+        if category in ('all', 'core'):
+            sysinf = self.wc.grab_json_response('/api/dataset/sys_info')
+            for item in sysinf.get('items', {}):
+                for firm in item.get('firmware', []):
+                    firminfo = {
+                        'version': firm['version'],
+                        'build': firm['build'],
+                        'date': parse_time(firm['release_date']),
+                    }
+                    if firm['type'] == 5:
+                        yield ('XCC', firminfo)
+                    elif firm['type'] == 6:
+                        yield ('XCC Backup', firminfo)
+                    elif firm['type'] == 0:
+                        yield ('UEFI', firminfo)
+                    elif firm['type'] == 7:
+                        yield ('LXPM', firminfo)
+                    elif firm['type'] == 8:
+                        yield ('LXPM Windows Driver Bundle', firminfo)
+                    elif firm['type'] == 9:
+                        yield ('LXPM Linux Driver Bundle', firminfo)
+                    elif firm['type'] == 10:
+                        yield ('LXUM', firminfo)
+        if components:
+            components = components - set((
+                'core', 'uefi', 'bios', 'xcc', 'bmc', 'imm', 'fpga',
+                'lxpm'))
+            if not components:
+                return
+        if not components:
+            components = set(('all',))
+        if category in ('all', 'adapters'):
+            needadapterfirmware = True
+        if category in ('all', 'disks'):
+            needdiskfirmware = True
+        if needadapterfirmware:
+            for adpinfo in self._get_agentless_firmware(components):
+                yield adpinfo
+        if needdiskfirmware:
+            for adpinfo in self._get_disk_firmware(components):
+                yield adpinfo
         raise pygexc.BypassGenericBehavior()
 
     def get_storage_configuration(self, logout=True):

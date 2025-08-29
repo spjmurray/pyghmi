@@ -1122,7 +1122,7 @@ class OEMHandler(generic.OEMHandler):
         if progress:
             progress({'phase': 'complete'})
 
-    def get_firmware_inventory(self, components, fishclient):
+    def get_firmware_inventory(self, components, fishclient, category):
         sfs = fishclient._do_web_request('/api/providers/system_firmware_status')
         pendingscm = sfs.get('fpga_scm_pending_build', None)
         pendinghpm = sfs.get('fpga_hpm_pending_build', None)

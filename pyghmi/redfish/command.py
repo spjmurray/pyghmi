@@ -1111,10 +1111,10 @@ class Command(object):
         self._do_web_request(self._bmcnicurl,
                              {'HostName': hostname}, 'PATCH')
 
-    def get_firmware(self, components=()):
+    def get_firmware(self, components=(), category=None):
         self._fwnamemap = {}
         try:
-            for firminfo in self.oem.get_firmware_inventory(components, self):
+            for firminfo in self.oem.get_firmware_inventory(components, self, category):
                 yield firminfo
         except exc.BypassGenericBehavior:
             return
