@@ -737,6 +737,8 @@ class OEMHandler(generic.OEMHandler):
                 return
         if not components:
             components = set(('all',))
+        needadapterfirmware = False
+        needdiskfirmware = False
         if category in ('all', 'adapters'):
             needadapterfirmware = True
         if category in ('all', 'disks'):
