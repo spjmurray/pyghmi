@@ -730,6 +730,7 @@ class OEMHandler(generic.OEMHandler):
                     elif firm['type'] == 10:
                         yield ('LXUM', firminfo)
         if components:
+            components = set([x.lower() for x in components])
             components = components - set((
                 'core', 'uefi', 'bios', 'xcc', 'bmc', 'imm', 'fpga',
                 'lxpm'))
