@@ -1088,14 +1088,15 @@ class OEMHandler(object):
             if (uploadthread.rspstatus >= 300
                     or uploadthread.rspstatus < 200):
                 rsp = uploadthread.rsp
-                errmsg = ''
+                errmsg = f'Update attempt resulted in response status {uploadthread.rspstatus}'
                 try:
                     rsp = json.loads(rsp)
                     errmsg = (
                         rsp['error'][
                             '@Message.ExtendedInfo'][0]['Message'])
                 except Exception:
-                    raise Exception(uploadthread.rsp)
+                    errmsg = errmsg + ': ' + repr(rsp)
+                    raise Exception(errmsg)
                 raise Exception(errmsg)
             return self.continue_update(uploadthread, progress)
         finally:

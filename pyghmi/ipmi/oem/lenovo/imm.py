@@ -2098,13 +2098,14 @@ class XCCClient(IMMClient):
                               'progress': 100 * wc.get_upload_progress()})
             if uploadthread.rspstatus >= 300 or uploadthread.rspstatus < 200:
                 rsp = uploadthread.rsp
-                errmsg = ''
+                errmsg = f'Upload failed with HTTP status {uploadthread.rspstatus}'
                 try:
                     rsp = json.loads(rsp)
                     errmsg = (
                         rsp['error']['@Message.ExtendedInfo'][0]['Message'])
                 except Exception:
-                    raise Exception(uploadthread.rsp)
+                    errmsg = errmsg + ': ' + str(rsp)
+                    raise Exception(errmsg)
                 raise Exception(errmsg)
             rsp = json.loads(uploadthread.rsp)
             monitorurl = rsp['@odata.id']
