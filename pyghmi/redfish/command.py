@@ -1026,13 +1026,13 @@ class Command(object):
             self._do_web_request(nicurl, patch, 'PATCH')
 
     def set_net_configuration(self, ipv4_address=None, ipv4_configuration=None,
-                              ipv4_gateway=None, name=None):
+                              ipv4_gateway=None, vlan_id=None, name=None):
         patch = {}
         ipinfo = {}
         dodhcp = None
         netmask = None
         if (ipv4_address is None and ipv4_configuration is None
-                and ipv4_gateway is None):
+                and ipv4_gateway is None and vlan_id is None):
             return
         if ipv4_address:
             if '/' in ipv4_address:
@@ -1054,6 +1054,10 @@ class Command(object):
               or 'IPv4StaticAddresses' in patch):
             dodhcp = False
             patch['DHCPv4'] = {'DHCPEnabled': False}
+        if vlan_id in ('off', 0, '0'):
+            patch['VLAN'] = {'VLANEnable': False}
+        elif vlan_id:
+            patch['VLAN'] = {'VLANEnable': True, 'VLANId': int(vlan_id)}
         if patch:
             nicurl = self._get_bmc_nic_url(name)
             try:
@@ -1079,6 +1083,11 @@ class Command(object):
         if gws:
             for gw in gws:
                 retdata['static_gateway'] = gw['Address']
+        tagged = netcfg.get('VLAN', {}).get('VLANEnabled', False)
+        if tagged:
+            retdata['vlan_id'] = netcfg.get('VLAN', {}).get('VLANId', None)
+        else:
+            retdata['vlan_id'] = 'off'
         return retdata
 
     def get_net_configuration(self, name=None):
@@ -1101,6 +1110,11 @@ class Command(object):
         hasgateway = _mask_to_cidr(currip['Gateway'])
         retval['ipv4_gateway'] = currip['Gateway'] if hasgateway else None
         retval['ipv4_configuration'] = currip['AddressOrigin']
+        tagged = netcfg.get('VLAN', {}).get('VLANEnable', False)
+        if tagged:
+            retval['vlan_id'] = netcfg.get('VLAN', {}).get('VLANId', None)
+        else:
+            retval['vlan_id'] = 'off'
         return retval
 
     def get_hostname(self):
