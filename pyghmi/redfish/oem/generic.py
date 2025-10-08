@@ -188,17 +188,66 @@ class OEMHandler(object):
     hostnic = None
     usegenericsensors = True
 
-    def __init__(self, sysinfo, sysurl, webclient, cache, gpool=None):
+    def __init__(self, sysinfo, sysurl, webclient, cache, gpool=None, rootinfo={}):
         self._gpool = gpool
         self._varsysinfo = sysinfo
         self._varsysurl = sysurl
         self._urlcache = cache
         self.webclient = webclient
         self._hwnamemap = {}
+        self._rootinfo = rootinfo
+        if not self._rootinfo:
+            self._rootinfo = self.webclient.grab_json_response(
+                '/redfish/v1/')
+        self._varbmcurl = None
+        self._varsysurl = sysurl
 
     def get_screenshot(self, outfile):
         raise exc.UnsupportedFunctionality(
             'Retrieving screenshot is not implemented for this platform')
+    
+    def get_default_mgrurl(self):
+        if not self._varbmcurl and 'Managers' in self._rootinfo:
+            bmcoll = self._rootinfo['Managers']['@odata.id']
+            res = self.webclient.grab_json_response_with_status(bmcoll)
+            if res[1] == 401:
+                raise exc.PyghmiException('Access Denied')
+            elif res[1] < 200 or res[1] >= 300:
+                raise exc.PyghmiException(repr(res[0]))
+            bmcs = res[0]['Members']
+            if len(bmcs) == 1:
+                self._varbmcurl = bmcs[0]['@odata.id']
+        return self._varbmcurl
+    
+    def get_default_sysurl(self):
+        if not self._varsysurl and 'Systems' in self._rootinfo:
+            systems = self._rootinfo['Systems']['@odata.id']
+            res = self.webclient.grab_json_response_with_status(systems)
+            if res[1] == 401:
+                raise exc.PyghmiException('Access Denied')
+            elif res[1] < 200 or res[1] >= 300:
+                raise exc.PyghmiException(repr(res[0]))
+            members = res[0]
+            systems = members['Members']
+            if self._varsysurl:
+                for system in systems:
+                    if system['@odata.id'] == self._varsysurl or system['@odata.id'].split('/')[-1] == self._varsysurl:
+                        self._varsysurl = system['@odata.id']
+                        break
+                else:
+                    raise exc.PyghmiException(
+                        'Specified sysurl not found: {0}'.format(self._varsysurl))
+            else:
+                if len(systems) > 1:
+                    systems = [x for x in systems if 'DPU' not in x['@odata.id']]
+                if len(systems) > 1:
+                    raise exc.PyghmiException(
+                        'Multi system manager, sysurl is required parameter')
+                if len(systems):
+                    self._varsysurl = systems[0]['@odata.id']
+                else:
+                    self._varsysurl = None
+        return self._varsysurl
 
     def supports_expand(self, url):
         # Unfortunately, the state of expand in redfish is pretty dicey,
