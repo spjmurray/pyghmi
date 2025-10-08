@@ -128,7 +128,9 @@ class OEMHandler(generic.OEMHandler):
             anames = {}
             for adata, _ in adapterdata:
                 skipadapter = False
-                clabel = adata['Slot']['Location']['PartLocation']['LocationType']
+                clabel = adata['Slot']['Location']['PartLocation'].get('LocationType','')
+                if not clabel:
+                    clabel = adata['Slot']['Location']['PartLocation'].get('ServiceLabel', '').split("=")[0]
                 if clabel != 'Embedded':
                     aslot = adata['Slot']['Location']['PartLocation']['LocationOrdinalValue']
                     clabel = 'Slot {0}'.format(aslot)
@@ -240,10 +242,16 @@ class OEMHandler(generic.OEMHandler):
         standalonedisks = []
         pools = []
         for item in rsp.get('Members',[]):
+            # Drives shown at 'Direct attached drives' in XCC
+            # cannot be used for RAID creation
+            if item['Id'].lower() == 'direct_attached_nvme':
+                continue
             cdisks = [item['Drives'][i]['@odata.id'] for i in range(len(item['Drives']))]
             cid = '{0},{1}'.format(
                         item['Id'],
                         item['StorageControllers'][0]['Location']['PartLocation'].get('LocationOrdinalValue', -1))
+            if item['Id'].lower() == 'vroc':
+                cid = 'vroc,0'
             storage_pools = self._get_expanded_data(item['StoragePools']['@odata.id'])
             for p in storage_pools['Members']:
                 vols = self._get_expanded_data(p['AllocatedVolumes']['@odata.id'])
