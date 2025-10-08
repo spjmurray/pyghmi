@@ -34,6 +34,8 @@ def get_oem_handler(sysinfo, sysurl, webclient, cache, cmd, rootinfo={}):
         if oem in OEMMAP:
             return OEMMAP[oem].get_handler(sysinfo, sysurl, webclient, cache,
                                            cmd, rootinfo)
+    if rootinfo:  # rootinfo indicates early invocation, bmcinfo not ready yet
+        return generic.OEMHandler(sysinfo, sysurl, webclient, cache, cmd._gpool, rootinfo)
     bmcinfo = cmd.bmcinfo
     for oem in bmcinfo.get('Oem', {}):
         if oem in OEMMAP:
