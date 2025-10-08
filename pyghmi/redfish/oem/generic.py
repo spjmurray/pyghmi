@@ -306,7 +306,16 @@ class OEMHandler(object):
         lurls.extend(extraurls)
         for lurl in lurls:
             lurl = lurl['@odata.id']
-            loginfo = self._do_web_request(lurl, cache=(not clear))
+            try:
+                loginfo = self._do_web_request(lurl, cache=(not clear))
+            except Exception:
+                record = {}
+                record['log_id'] = os.path.basename(lurl)
+                record['message'] = 'Could not retrieve log at {0}'.format(lurl)
+                record['severity'] = const.Health.Ok
+                record['timestamp'] = datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
+                yield record
+                continue
             entriesurl = loginfo.get('Entries', {}).get('@odata.id', None)
             if not entriesurl:
                 continue
