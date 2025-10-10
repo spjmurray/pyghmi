@@ -239,6 +239,16 @@ class Command(object):
             okroles.add('ReadOnly')
         return okroles
 
+    def get_trusted_cas(self):
+        for ca in self.oem.get_trusted_cas():
+            yield ca
+    
+    def add_trusted_ca(self, pemdata):
+        return self.oem.add_trusted_ca(pemdata)
+    
+    def del_trusted_ca(self, certid):
+        return self.oem.del_trusted_ca(certid)
+            
     def get_users(self):
         """get list of users and channel access information (helper)
 
