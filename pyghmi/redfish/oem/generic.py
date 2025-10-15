@@ -210,6 +210,14 @@ class OEMHandler(object):
     hostnic = None
     usegenericsensors = True
 
+    def _invalidate_url_cache(self, url):
+        if url is None:
+            return
+        if url in self._urlcache:
+            del self._urlcache[url]
+        if url + '?$expand=.' in self._urlcache:
+            del self._urlcache[url + '?$expand=.']
+
     def __init__(self, sysinfo, sysurl, webclient, cache, gpool=None, rootinfo={}):
         self._gpool = gpool
         self._varsysinfo = sysinfo
@@ -325,6 +333,7 @@ class OEMHandler(object):
         if secpolicy:
             secinfo = self._do_web_request(secpolicy)
             certcoll = secinfo.get('TLS', {}).get('Client', {}).get('TrustedCertificates', {}).get('@odata.id', None)
+            self._invalidate_url_cache(certcoll)
             if certcoll:
                 certpayload = _pem_to_dict(pemdata)
                 self._do_web_request(certcoll, certpayload)
@@ -343,6 +352,7 @@ class OEMHandler(object):
                 for cert in certs:
                     if cert.get('Id', '') == certid:
                         self._do_web_request(cert['@odata.id'], method='DELETE')
+                        self._invalidate_url_cache(certcoll)
                         return True
         raise exc.PyghmiException(f'No such certificate found: {certid}')
 
@@ -1357,6 +1367,8 @@ class OEMHandler(object):
             res = self._get_cache(url)
         if res:
             return res
+        # If doing a method that may change remote url state, invalidate cache
+        self._invalidate_url_cache(url)
         wc = self.webclient.dupe()
         if etag:
             wc.stdheaders['If-Match'] = etag
