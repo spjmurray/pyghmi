@@ -167,8 +167,11 @@ class AttrDependencyHandler(object):
                 if currprop == 'CurrentValue':
                     if currattr in self.pend:
                         currval = self.pend[currattr]
-                    else:
+                    elif currattr in self.curr:
                         currval = self.curr[currattr]
+                    else:
+                        break  # The cited dependency attribute is missing, can't enforce
+                               # requested override
                 else:
                     currval = self.reg[currattr][currprop]
                 lastcond = self.process(currval, mapfrom, lastcond, lastoper)
