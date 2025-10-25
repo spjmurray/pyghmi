@@ -243,6 +243,14 @@ class Command(object):
         for ca in self.oem.get_trusted_cas():
             yield ca
     
+    def get_bmc_csr(self, keytype=None, keylength=None, cn=None, city=None,
+                    state=None, country=None, org=None, orgunit=None):
+        return self.oem.get_bmc_csr(
+            keytype=keytype, keylength=keylength, cn=cn)
+
+    def install_bmc_certificate(self, certdata):
+        return self.oem.install_bmc_certificate(certdata)
+
     def add_trusted_ca(self, pemdata):
         return self.oem.add_trusted_ca(pemdata)
     
