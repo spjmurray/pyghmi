@@ -430,6 +430,8 @@ class OEMHandler(object):
                     certcollections.discard(candcoll)
                 elif 'KMIP' in candcoll:  # not for TLS
                     certcollections.discard(candcoll)
+                elif 'Boot/Certificates' in candcoll:
+                    certcollections.discard(candcoll)
         if len(certcollections) > 1:
             raise exc.PyghmiException('Multiple certificate collections found, unable to infer intended target for certificate operation')
         certcoll = list(certcollections)[0]
@@ -461,6 +463,8 @@ class OEMHandler(object):
                 elif 'LDAP' in certurl:
                     allcerts.discard(certurl)
                 elif 'KMIP' in certurl:
+                    allcerts.discard(certurl)
+                elif 'Boot/Certificates' in certurl:
                     allcerts.discard(certurl)
         if len(allcerts) > 1:
             raise exc.PyghmiException('Multiple Certificates found, unable to infer intended target for certificate installation')
