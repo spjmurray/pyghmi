@@ -12,17 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pyghmi.redfish.oem.generic as generic
+import pyghmi.redfish.oem.ami.megarac as megarac
 
 
 def get_handler(sysinfo, sysurl, webclient, cache, cmd, rootinfo={}):
-    if not sysinfo:
-        systems, status = webclient.grab_json_response_with_status('/redfish/v1/Systems')
-        if status == 200:
-            for system in systems.get('Members', []):
-                if system.get('@odata.id', '').endswith('/Self'):
-                    sysurl = system['@odata.id']
-                    sysinfo, status = webclient.grab_json_response_with_status(sysurl)
-                    break
-    return generic.OEMHandler(sysinfo, sysurl, webclient, cache,
+    return megarac.OEMHandler(sysinfo, sysurl, webclient, cache,
                             gpool=cmd._gpool)

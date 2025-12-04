@@ -188,6 +188,7 @@ class Command(object):
         self._varsensormap = {}
         self.powerurl = None
         self.sysurl = None
+        self._initsysurl = sysurl
         tmpoem = oem.get_oem_handler({}, sysurl, self.wc, self._urlcache, self,
                                     rootinfo=overview)
         self._varbmcurl = tmpoem.get_default_mgrurl()
@@ -1228,7 +1229,7 @@ class Command(object):
             elif self._varbmcurl:
                 self._do_web_request(self._varbmcurl, cache=False)  # This is to trigger token validation and renewel
             self._oem = oem.get_oem_handler(
-                self.sysinfo, self.sysurl, self.wc, self._urlcache, self)
+                self.sysinfo, self._initsysurl, self.wc, self._urlcache, self)
             self._oem.set_credentials(self.username, self.password)
         return self._oem
 

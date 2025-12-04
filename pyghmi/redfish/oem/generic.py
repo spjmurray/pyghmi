@@ -235,6 +235,18 @@ class OEMHandler(object):
                 '/redfish/v1/')
         self._varbmcurl = None
         self._varsysurl = sysurl
+        self._allsysurls = []
+        if sysurl is None:  # generic means we need to gather all systems
+            if 'Systems' in self._rootinfo:
+                systems = self._rootinfo['Systems']['@odata.id']
+                res = self.webclient.grab_json_response_with_status(systems)
+                if res[1] == 200:
+                    members = res[0]['Members']
+                    for system in members:
+                        if system['@odata.id'] != sysurl:
+                            self._allsysurls.append(system['@odata.id'])
+        else:
+            self._allsysurls = [sysurl]
 
     def get_screenshot(self, outfile):
         raise exc.UnsupportedFunctionality(
@@ -656,7 +668,7 @@ class OEMHandler(object):
             if memsumstatus != 'OK':
                 dimmfound = False
                 dimmdata = self._get_mem_data()
-                for dimminfo in dimmdata['Members']:
+                for dimminfo in dimmdata:
                     if dimminfo.get('Status', {}).get(
                             'State', None) == 'Absent':
                         continue
@@ -1240,8 +1252,7 @@ class OEMHandler(object):
         return urls
 
     def _get_cpu_inventory(self, onlynames=False, withids=False, urls=None):
-        for currcpuinfo in self._get_cpu_data().get(
-                'Members', []):
+        for currcpuinfo in self._get_cpu_data():
             url = currcpuinfo['@odata.id']
             name = currcpuinfo.get('Name', 'CPU')
             if name in self._hwnamemap:
@@ -1268,18 +1279,21 @@ class OEMHandler(object):
 
     def _get_cpu_urls(self):
         md = self._get_cpu_data(False)
-        return [x['@odata.id'] for x in md.get('Members', [])]
+        return [x['@odata.id'] for x in md]
 
     def _get_cpu_data(self, expand='.'):
-        cpurl = self._varsysinfo.get('Processors', {}).get('@odata.id', None)
-        if not cpurl:
-            return {}
-        return self._get_expanded_data(cpurl, expand)
-
+        cpumembers = []
+        for sysurl in self._allsysurls:
+            currsysdata = self._do_web_request(sysurl)
+            currcpuurl = currsysdata.get('Processors', {}).get('@odata.id', None)
+            if currcpuurl:
+                currcpudata = self._get_expanded_data(currcpuurl, expand)
+                cpumembers.extend(currcpudata.get('Members', []))
+        return cpumembers
 
     def _get_mem_inventory(self, onlyname=False, withids=False, urls=None):
         memdata = self._get_mem_data()
-        for currmeminfo in memdata.get('Members', []): # self._do_bulk_requests(urls):
+        for currmeminfo in memdata:
             url = currmeminfo['@odata.id']
             name = currmeminfo.get('Name', 'Memory')
             if name in self._hwnamemap:
@@ -1310,13 +1324,17 @@ class OEMHandler(object):
 
     def _get_mem_urls(self):
         md = self._get_mem_data(False)
-        return [x['@odata.id'] for x in md.get('Members', [])]
+        return [x['@odata.id'] for x in md]
 
     def _get_mem_data(self, expand='.'):
-        memurl = self._varsysinfo.get('Memory', {}).get('@odata.id', None)
-        if not memurl:
-            return {}
-        return self._get_expanded_data(memurl, expand)
+        memmembers = []
+        for sysurl in self._allsysurls:
+            currsysdata = self._do_web_request(sysurl)
+            currmemurl = currsysdata.get('Memory', {}).get('@odata.id', None)
+            if currmemurl:
+                currmemdata = self._get_expanded_data(currmemurl, expand)
+                memmembers.extend(currmemdata.get('Members', []))
+        return memmembers
 
     def _get_expanded_data(self, url, expand='.'):
         topdata = []

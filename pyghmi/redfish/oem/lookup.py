@@ -21,6 +21,7 @@ OEMMAP = {
     'Lenovo': lenovo,
     'Dell': dell,
     'AMI': ami,
+    'Ami': ami,
 }
 
 
