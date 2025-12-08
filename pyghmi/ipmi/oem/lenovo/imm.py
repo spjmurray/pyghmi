@@ -1966,15 +1966,24 @@ class XCCClient(IMMClient):
                     url = url.replace(':', '')
                     url = 'nfs://' + url
                 yield media.Media(mt['filename'], url)
+        for rdoc in self._list_rdoc():
+            yield rdoc
+        self.weblogout()
+
+    
+    def _list_rdoc(self):
         rt = self.wc.grab_json_response('/api/providers/rp_rdoc_imagelist')
         if 'items' in rt:
             for mt in rt['items']:
                 yield media.Media(mt['filename'])
-        self.weblogout()
 
     def upload_media(self, filename, progress=None, data=None):
         wc = self.wc
         self._refresh_token()
+        for rdoc in self._list_rdoc():
+            if rdoc.name == os.path.basename(filename):
+                raise pygexc.InvalidParameterValue(
+                    'An image with that name already exists')
         rsp, statu = wc.grab_json_response_with_status('/rdocupload')
         newmode = False
         if statu == 404:
@@ -1999,10 +2008,16 @@ class XCCClient(IMMClient):
                     progress({'phase': 'upload',
                             'progress': 100.0 * rsp['received'] / rsp['size']})
             self._refresh_token()
-        rsp = json.loads(uploadthread.rsp)
+        if uploadthread.rsp:
+            rsp = json.loads(uploadthread.rsp)
+        else:
+            rsp = {}
         if progress:
             progress({'phase': 'upload',
                       'progress': 100.0})
+        if 'items' not in rsp or len(rsp['items']) == 0:
+            errmsg = repr(rsp) if rsp else self.wc.lastjsonerror if self.wc.lastjsonerror else repr(uploadthread.rspstatus)
+            raise pygexc.PyghmiException('Failed to upload image: ' + errmsg)
         thepath = rsp['items'][0]['path']
         thename = rsp['items'][0]['name']
         writeable = 1 if filename.lower().endswith('.img') else 0
