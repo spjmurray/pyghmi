@@ -1214,10 +1214,15 @@ class OEMHandler(generic.OEMHandler):
     def upload_media(self, filename, progress=None, data=None):
         wc = self.wc
         self._refresh_token()
+        numrdocs = 0
         for rdoc in self._list_rdoc():
+            numrdocs += 1
             if rdoc.name == os.path.basename(filename):
                 raise pygexc.InvalidParameterValue(
                     'An image with that name already exists')
+        if numrdocs >= 2:
+            raise pygexc.InvalidParameterValue(
+                'Maximum number of uploaded media reached')
         rsp, statu = wc.grab_json_response_with_status('/rdocupload')
         newmode = False
         if statu == 404:
