@@ -99,7 +99,7 @@ class FileDownloader(threading.Thread):
 
 def get_upload_form(filename, data, formname, otherfields, boundary=BND):
     if not boundary:
-        boundary = base64.b64encode(os.urandom(54))[:70]
+        boundary = base64.urlsafe_b64encode(os.urandom(54))[:66]
     ffilename = filename.split('/')[-1]
     if not formname:
         formname = ffilename
