@@ -27,7 +27,6 @@ import socket
 import struct
 import weakref
 
-import six
 import zipfile
 
 import pyghmi.constants as pygconst
@@ -281,7 +280,7 @@ class IMMClient(object):
 
     def merge_changeset(self, changeset):
         for key in changeset:
-            if isinstance(changeset[key], six.string_types):
+            if isinstance(changeset[key], str):
                 changeset[key] = {'value': changeset[key]}
             newvalue = changeset[key]['value']
             if self.fwo[key]['is_list'] and not isinstance(newvalue, list):
@@ -1124,7 +1123,7 @@ class XCCClient(IMMClient):
         ruleset = {}
         usbsettings = {}
         for key in changeset:
-            if isinstance(changeset[key], six.string_types):
+            if isinstance(changeset[key], str):
                 changeset[key] = {'value': changeset[key]}
             currval = changeset[key].get('value', None)
             if 'smm'.startswith(key.lower()):

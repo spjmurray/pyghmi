@@ -26,8 +26,6 @@ import ssl
 import threading
 import os
 
-import six
-
 import pyghmi.exceptions as pygexc
 
 try:
@@ -306,7 +304,7 @@ class SecureHTTPConnection(httplib.HTTPConnection, object):
         """Download a file to filename or file object
 
         """
-        if isinstance(file, six.string_types):
+        if isinstance(file, str):
             file = open(file, 'wb')
         webclient = self.dupe()
         dlheaders = self.stdheaders.copy()

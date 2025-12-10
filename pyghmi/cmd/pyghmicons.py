@@ -22,8 +22,6 @@ import termios
 import threading
 import tty
 
-import six
-
 from pyghmi.ipmi import console
 
 
@@ -42,7 +40,7 @@ def _doinput(sol):
 
 def _print(data):
     bailout = False
-    if not isinstance(data, six.string_types):
+    if not isinstance(data, str):
         bailout = True
         data = repr(data)
     sys.stdout.write(data)

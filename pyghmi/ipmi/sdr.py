@@ -36,8 +36,6 @@ import string
 import struct
 import weakref
 
-import six
-
 import pyghmi.constants as const
 import pyghmi.exceptions as exc
 
@@ -621,8 +619,7 @@ class SDREntry(object):
             return ""
         if ipmitype == 0:  # Unicode per 43.15 in ipmi 2.0 spec
             # the spec is not specific about encoding, assuming utf8
-            return six.text_type(struct.pack("%dB" % len(data), *data),
-                                 "utf_8")
+            return struct.pack("%dB" % len(data), *data).decode("utf-8")
         elif ipmitype == 1:  # BCD '+'
             tmpl = "%02X" * len(data)
             tstr = tmpl % tuple(data)

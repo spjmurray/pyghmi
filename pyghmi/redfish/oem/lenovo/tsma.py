@@ -20,8 +20,6 @@ try:
 except ImportError:
     from urllib.parse import urlencode
 
-import six
-
 import pyghmi.exceptions as exc
 import pyghmi.media as media
 import pyghmi.redfish.oem.generic as generic
@@ -171,7 +169,7 @@ class TsmHandler(generic.OEMHandler):
         dnschgs = {}
         wc = self.wc
         for key in changeset:
-            if isinstance(changeset[key], six.string_types):
+            if isinstance(changeset[key], str):
                 changeset[key] = {'value': changeset[key]}
             currval = changeset[key].get('value', None)
             if 'dns_servers'.startswith(key.lower()):

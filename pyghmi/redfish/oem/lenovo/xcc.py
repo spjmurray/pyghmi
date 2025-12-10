@@ -23,7 +23,6 @@ import re
 import socket
 import time
 
-import six
 import zipfile
 
 import pyghmi.constants as pygconst
@@ -261,7 +260,7 @@ class OEMHandler(generic.OEMHandler):
 
     def merge_changeset(self, changeset):
         for key in changeset:
-            if isinstance(changeset[key], six.string_types):
+            if isinstance(changeset[key], str):
                 changeset[key] = {'value': changeset[key]}
             newvalue = changeset[key]['value']
             if self.fwo[key]['is_list'] and not isinstance(newvalue, list):
@@ -416,7 +415,7 @@ class OEMHandler(generic.OEMHandler):
         usbsettings = {}
         secparms = {}
         for key in changeset:
-            if isinstance(changeset[key], six.string_types):
+            if isinstance(changeset[key], str):
                 changeset[key] = {'value': changeset[key]}
             currval = changeset[key].get('value', None)
             if key.lower() in self.rulemap:
