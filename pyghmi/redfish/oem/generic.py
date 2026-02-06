@@ -340,7 +340,7 @@ class OEMHandler(object):
 
     @property
     def sysinfo(self):
-        return self._do_web_request(self._varsysurl)
+        return self._do_web_request(self.get_default_sysurl())
 
     def get_bmc_csr(self, keytype=None, keylength=None, cn=None, city=None,
                     state=None, country=None, org=None, orgunit=None):
