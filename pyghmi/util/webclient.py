@@ -246,7 +246,7 @@ class SecureHTTPConnection(httplib.HTTPConnection, object):
         return {}
 
     def grab_json_response_with_status(self, url, data=None, referer=None,
-                                       headers=None, method=None):
+                                       headers=None, method=None, returnheaders=False):
         webclient = self.dupe()
         if isinstance(data, dict):
             data = json.dumps(data)
@@ -281,7 +281,11 @@ class SecureHTTPConnection(httplib.HTTPConnection, object):
                     body = body.decode('utf8')
                 except Exception:
                     body = body.decode('iso-8859-1')
+            if returnheaders:
+                return json.loads(body) if body else {}, rsp.status, dict(rsp.headers)
             return json.loads(body) if body else {}, rsp.status
+        if returnheaders:
+            return body, rsp.status, dict(rsp.headers)
         return body, rsp.status
 
     def grab_rsp(self, url, data=None, referer=None, headers=None, method=None):
