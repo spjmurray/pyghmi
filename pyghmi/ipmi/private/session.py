@@ -171,19 +171,20 @@ def _io_wait(timeout, myaddr=None, evq=None):
     evt = threading.Event()
     if evq is not None:
         evq.append(evt)
+    timeout = max(timeout, 0)
     deadline = timeout + _monotonic_time()
     ioqueue.append((deadline, evt, myaddr))
     # Unfortunately, at least with eventlet patched threading, the wait()
     # is a somewhat busy wait if given a deadline.  Workaround by having
     # it piggy back on the select() in the io thread, which is a truly
     # lazy wait even with eventlet involvement
-    if deadline < selectdeadline:
+    if deadline < selectdeadline and iosockets:
         intsock = iosockets[0]
         if hasattr(intsock, 'fd'):
             # if in eventlet, go for the true sendto, which is less glitchy
             intsock = intsock.fd
         intsock.sendto(b'\x01', (myself, iosockets[0].getsockname()[1]))
-    evt.wait()
+    evt.wait(timeout)
 
 
 def _io_sendto(mysocket, packet, sockaddr):
