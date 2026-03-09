@@ -238,6 +238,7 @@ class SessionRegressionTestCase(unittest.TestCase):
         ipmisession.password = b'pass'
         ipmisession.port = 623
         ipmisession.kgo = None
+        ipmisession._initting_key = ('bmc.example.com', 'user', 'pass', 623, None)
         ipmisession.logging = True
         ipmisession.errormsg = None
         ipmisession.broken = False
@@ -249,9 +250,27 @@ class SessionRegressionTestCase(unittest.TestCase):
 
         with mock.patch.object(session.Session, 'keepalive_sessions', new={}):
             with mock.patch.object(session.Session, 'waiting_sessions', new={}):
-                ipmisession._mark_broken('timeout during login')
+                with mock.patch.object(
+                        session.Session, 'initting_sessions',
+                        new={ipmisession._initting_key: ipmisession}):
+                    ipmisession._mark_broken('timeout during login')
 
         waiter.assert_called_once_with({'error': 'timeout during login'})
+
+    def test_pyghmi_clear_initting_session_handles_str_to_bytes_key_mismatch(self):
+        ipmisession = object.__new__(session.Session)
+        ipmisession.bmc = 'bmc.example.com'
+        ipmisession.userid = b'user'
+        ipmisession.password = b'pass'
+        ipmisession.port = 623
+        ipmisession.kgo = None
+        ipmisession._initting_key = ('bmc.example.com', 'user', 'pass', 623, None)
+        initting = {ipmisession._initting_key: ipmisession}
+
+        with mock.patch.object(session.Session, 'initting_sessions', new=initting):
+            ipmisession._clear_initting_session()
+
+        self.assertEqual({}, initting)
 
     def test_pyghmi_logout_prunes_stale_bmc_handler_mapping(self):
         sock = FakeSocket()

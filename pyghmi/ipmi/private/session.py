@@ -486,8 +486,9 @@ class Session(object):
                     forbidsock.append(self.socket)
             if trueself:
                 return trueself
+            initting_key = (bmc, userid, password, port, kg)
             i = cls.initting_sessions.get(
-                (bmc, userid, password, port, kg), False)
+                initting_key, False)
             if i and cls._is_session_valid(i) and (
                     getattr(i, 'logging', False) or getattr(i, 'logged', False)
             ):
@@ -495,10 +496,11 @@ class Session(object):
                 i.logging = True
                 return i
             elif i:
-                del cls.initting_sessions[(bmc, userid, password, port, kg)]
+                cls.initting_sessions.pop(initting_key, None)
             self = object.__new__(cls)
             self.forbidsock = forbidsock
-            cls.initting_sessions[(bmc, userid, password, port, kg)] = self
+            self._initting_key = initting_key
+            cls.initting_sessions[initting_key] = self
             return self
 
     def __init__(self,
@@ -597,12 +599,7 @@ class Session(object):
             Session.keepalive_sessions.pop(self, None)
         with util.protect(WAITING_SESSIONS):
             Session.waiting_sessions.pop(self, None)
-        try:
-            del Session.initting_sessions[(self.bmc, self.userid,
-                                           self.password, self.port,
-                                           self.kgo)]
-        except KeyError:
-            pass
+        self._clear_initting_session()
         self.logout(False)
         self.logging = False
         self.errormsg = error
@@ -634,6 +631,23 @@ class Session(object):
         while self.logonwaiters:
             waiter = self.logonwaiters.pop()
             waiter(parameter)
+
+    def _clear_initting_session(self):
+        key = getattr(self, '_initting_key', None)
+        if key:
+            Session.initting_sessions.pop(key, None)
+        Session.initting_sessions.pop(
+            (self.bmc, self.userid, self.password, self.port, self.kgo), None)
+        try:
+            suid = self.userid.decode('utf-8')
+        except Exception:
+            suid = self.userid
+        try:
+            spass = self.password.decode('utf-8')
+        except Exception:
+            spass = self.password
+        Session.initting_sessions.pop(
+            (self.bmc, suid, spass, self.port, self.kgo), None)
 
     def _initsession(self):
         # NOTE(jbjohnso): this number can be whatever we want.
@@ -1875,12 +1889,7 @@ class Session(object):
                         Session.bmc_handlers[sockaddr] = {}
                     Session.bmc_handlers[sockaddr][myport] = self
                     _io_sendto(self.socket, self.netpacket, sockaddr)
-                try:
-                    del Session.initting_sessions[(self.bmc, self.userid,
-                                                   self.password, self.port,
-                                                   self.kgo)]
-                except KeyError:
-                    pass
+                self._clear_initting_session()
             except socket.gaierror:
                 raise exc.IpmiException(
                     "Unable to transmit to specified address")
