@@ -207,3 +207,28 @@ class SessionRegressionTestCase(unittest.TestCase):
         ipmisession._relog.assert_not_called()
         ipmisession._mark_broken.assert_called_once_with(
             'timeout in established session')
+
+    def test_pyghmi_logout_prunes_stale_bmc_handler_mapping(self):
+        sock = FakeSocket()
+        ipmisession = object.__new__(session.Session)
+        ipmisession.cleaningup = False
+        ipmisession.logged = 0
+        ipmisession.sol_handler = None
+        ipmisession.lastpayload = b'data'
+        ipmisession.onlogpayload = b'data'
+        ipmisession.logging = True
+        ipmisession._customkeepalives = None
+        ipmisession.broken = False
+        ipmisession.socket = sock
+        ipmisession.socketpool = {sock: 2}
+        ipmisession.allsockaddrs = []
+        ipmisession.nowait = False
+
+        bmc_handlers = {('192.0.2.1', 623): {sock.getsockname()[1]: ipmisession}}
+
+        with mock.patch.object(session.Session, 'keepalive_sessions', new={}):
+            with mock.patch.object(session.Session, 'bmc_handlers',
+                                   new=bmc_handlers):
+                ipmisession.logout()
+
+        self.assertEqual({}, bmc_handlers)

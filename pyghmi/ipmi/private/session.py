@@ -1939,6 +1939,12 @@ class Session(object):
                     del Session.bmc_handlers[sockaddr][myport]
                     if Session.bmc_handlers[sockaddr] == {}:
                         del Session.bmc_handlers[sockaddr]
+            for sockaddr in list(Session.bmc_handlers):
+                for port in list(Session.bmc_handlers[sockaddr]):
+                    if Session.bmc_handlers[sockaddr][port] is self:
+                        del Session.bmc_handlers[sockaddr][port]
+                if Session.bmc_handlers[sockaddr] == {}:
+                    del Session.bmc_handlers[sockaddr]
         self.nowait = False
         return {'success': True}
 
