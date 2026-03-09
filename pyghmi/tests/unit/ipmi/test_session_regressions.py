@@ -189,3 +189,21 @@ class SessionRegressionTestCase(unittest.TestCase):
 
         ipmisession._relog.assert_not_called()
         ipmisession._mark_broken.assert_called_once_with('timeout during login')
+
+    def test_pyghmi_timedout_established_marks_broken_instead_of_relog(self):
+        ipmisession = object.__new__(session.Session)
+        ipmisession.lastpayload = b'data'
+        ipmisession.last_payload_type = 1
+        ipmisession.nowait = False
+        ipmisession.timeout = 2
+        ipmisession.maxtimeout = 1
+        ipmisession.logontries = 1
+        ipmisession.sessioncontext = 'ESTABLISHED'
+        ipmisession._mark_broken = mock.Mock()
+        ipmisession._relog = mock.Mock()
+
+        ipmisession._timedout()
+
+        ipmisession._relog.assert_not_called()
+        ipmisession._mark_broken.assert_called_once_with(
+            'timeout in established session')

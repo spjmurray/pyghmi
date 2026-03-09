@@ -1799,13 +1799,11 @@ class Session(object):
                 self._mark_broken()
                 return
             else:
-                self.maxtimeout = 2
                 if self.sessioncontext == 'ESTABLISHED':
-                    self.onlogpayload = self.lastpayload
-                    self.onlogpayloadtype = self.last_payload_type
-                    self.maxtimeout = 6
-                    self._relog()
+                    self.nowait = False
+                    self._mark_broken('timeout in established session')
                     return
+                self.maxtimeout = 2
                 self.nowait = False
                 self._mark_broken('timeout during login')
                 return
