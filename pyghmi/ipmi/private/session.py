@@ -1916,7 +1916,6 @@ class Session(object):
                     if Session.bmc_handlers[sockaddr] == {}:
                         del Session.bmc_handlers[sockaddr]
         self.nowait = False
-        self.socketpool[self.socket] -= 1
         return {'success': True}
 
 

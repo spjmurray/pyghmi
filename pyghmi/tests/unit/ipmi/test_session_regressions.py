@@ -13,6 +13,14 @@ class FakeEvent(object):
         return True
 
 
+class FakeSocket(object):
+    def __init__(self, port=9000):
+        self.port = port
+
+    def getsockname(self):
+        return ('127.0.0.1', self.port)
+
+
 class SessionRegressionTestCase(unittest.TestCase):
 
     def test_pyghmi_io_wait_respects_timeout_without_iothread(self):
@@ -65,3 +73,26 @@ class SessionRegressionTestCase(unittest.TestCase):
                         worker.run()
 
         self.assertEqual(2, len(graball_calls))
+
+    def test_pyghmi_logout_does_not_double_decrement_socketpool(self):
+        sock = FakeSocket()
+        ipmisession = object.__new__(session.Session)
+        ipmisession.cleaningup = False
+        ipmisession.logged = 0
+        ipmisession.sol_handler = None
+        ipmisession.lastpayload = b'data'
+        ipmisession.onlogpayload = b'data'
+        ipmisession.logging = True
+        ipmisession._customkeepalives = None
+        ipmisession.broken = False
+        ipmisession.socket = sock
+        ipmisession.socketpool = {sock: 2}
+        ipmisession.allsockaddrs = []
+        ipmisession.nowait = False
+
+        with mock.patch.object(session.Session, 'keepalive_sessions',
+                               new={}):
+            response = ipmisession.logout()
+
+        self.assertEqual({'success': True}, response)
+        self.assertEqual(1, ipmisession.socketpool[sock])
