@@ -429,7 +429,7 @@ class Session(object):
                 if sess['timeout'] < _monotonic_time() - 15:
                     # session would have timed out by now, don't use it
                     return False
-        return not session.broken
+        return not session.broken and session.sessioncontext != 'FAILED'
 
     def __new__(cls,
                 bmc,
@@ -473,10 +473,14 @@ class Session(object):
                 return trueself
             i = cls.initting_sessions.get(
                 (bmc, userid, password, port, kg), False)
-            if i:
+            if i and cls._is_session_valid(i) and (
+                    getattr(i, 'logging', False) or getattr(i, 'logged', False)
+            ):
                 i.initialized = True
                 i.logging = True
                 return i
+            elif i:
+                del cls.initting_sessions[(bmc, userid, password, port, kg)]
             self = object.__new__(cls)
             self.forbidsock = forbidsock
             cls.initting_sessions[(bmc, userid, password, port, kg)] = self

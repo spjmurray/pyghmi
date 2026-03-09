@@ -96,3 +96,39 @@ class SessionRegressionTestCase(unittest.TestCase):
 
         self.assertEqual({'success': True}, response)
         self.assertEqual(1, ipmisession.socketpool[sock])
+
+    def test_pyghmi_new_does_not_reuse_stale_initting_session(self):
+        stale = mock.Mock()
+        stale.logged = False
+        stale.logging = False
+        stale.broken = False
+        stale.sessioncontext = None
+
+        getaddrinfo_result = [(session.socket.AF_INET, session.socket.SOCK_DGRAM,
+                               0, '', ('127.0.0.1', 623))]
+        sesskey = ('bmc.example.com', 'user', 'pass', 623, None)
+        initting_sessions = {sesskey: stale}
+
+        with mock.patch.object(session.socket, 'getaddrinfo',
+                               return_value=getaddrinfo_result):
+            with mock.patch.object(session.Session, 'bmc_handlers', new={}):
+                with mock.patch.object(session.Session, 'keepalive_sessions',
+                                       new={}):
+                    with mock.patch.object(
+                            session.Session, 'initting_sessions',
+                            new=initting_sessions):
+                        created = session.Session.__new__(
+                            session.Session, 'bmc.example.com', 'user', 'pass')
+
+        self.assertIsNot(stale, created)
+        self.assertIs(initting_sessions[sesskey], created)
+
+    def test_pyghmi_is_session_valid_rejects_failed_context(self):
+        failed = mock.Mock()
+        failed.broken = False
+        failed.sessioncontext = 'FAILED'
+
+        with mock.patch.object(session.Session, 'keepalive_sessions', new={}):
+            valid = session.Session._is_session_valid(failed)
+
+        self.assertFalse(valid)
