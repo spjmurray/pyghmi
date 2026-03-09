@@ -114,7 +114,12 @@ def define_worker():
                 if timeout < 0:
                     timeout = 0
                 selectdeadline = _monotonic_time() + timeout
-                select.select(iosockets, (), (), timeout)
+                _prune_invalid_iosockets()
+                try:
+                    select.select(iosockets, (), (), timeout)
+                except ValueError:
+                    _prune_invalid_iosockets()
+                    continue
                 # pessimistically move out the deadline
                 # doing it this early (before ioqueue is evaluated)
                 # this avoids other threads making a bad assumption
@@ -168,6 +173,16 @@ def define_worker():
 
 
 sessionqueue = collections.deque([])
+
+
+def _prune_invalid_iosockets():
+    for idx, iosocket in reversed(list(enumerate(iosockets))):
+        try:
+            fileno = iosocket.fileno()
+        except Exception:
+            fileno = -1
+        if fileno < 0:
+            del iosockets[idx]
 
 
 def _io_wait(timeout, myaddr=None, evq=None):

@@ -132,3 +132,27 @@ class SessionRegressionTestCase(unittest.TestCase):
             valid = session.Session._is_session_valid(failed)
 
         self.assertFalse(valid)
+
+    def test_pyghmi_ioworker_survives_select_valueerror(self):
+        worker = session.define_worker()()
+        bad_socket = mock.Mock()
+        bad_socket.fileno.return_value = -1
+        select_calls = []
+
+        def fake_select(sockets, _, __, timeout):
+            select_calls.append(list(sockets))
+            if len(select_calls) == 1:
+                raise ValueError('file descriptor cannot be a negative integer')
+            worker.running = False
+            return ([], [], [])
+
+        with mock.patch.object(session, 'iosockets', new=[bad_socket]):
+            with mock.patch.object(session, 'iothreadwaiters', new=[]):
+                with mock.patch.object(session.select, 'select',
+                                       side_effect=fake_select):
+                    with mock.patch.object(session, '_io_graball',
+                                           return_value=[]):
+                        worker.run()
+
+        self.assertEqual(2, len(select_calls))
+        self.assertEqual([], select_calls[1])
