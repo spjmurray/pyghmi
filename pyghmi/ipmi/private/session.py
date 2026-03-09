@@ -1804,7 +1804,10 @@ class Session(object):
                     self.onlogpayload = self.lastpayload
                     self.onlogpayloadtype = self.last_payload_type
                     self.maxtimeout = 6
-                self._relog()
+                    self._relog()
+                    return
+                self.nowait = False
+                self._mark_broken('timeout during login')
                 return
         elif self.sessioncontext == 'FAILED':
             self.lastpayload = None
@@ -1822,6 +1825,10 @@ class Session(object):
             # If we can't be sure which RAKP was dropped or if RAKP3/4 was just
             # delayed, the most reliable thing to do is rewind and start over
             # bmcs do not take kindly to receiving RAKP1 or RAKP3 twice
+            if not self.logontries:
+                self.nowait = False
+                self._mark_broken('timeout during login')
+                return
             self._relog()
         else:  # in IPMI case, the only recourse is to act as if the packet is
             # idempotent.  SOL has more sophisticated retry handling

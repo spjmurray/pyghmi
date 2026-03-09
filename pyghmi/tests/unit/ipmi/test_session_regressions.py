@@ -156,3 +156,36 @@ class SessionRegressionTestCase(unittest.TestCase):
 
         self.assertEqual(2, len(select_calls))
         self.assertEqual([], select_calls[1])
+
+    def test_pyghmi_timedout_non_established_does_not_relog(self):
+        ipmisession = object.__new__(session.Session)
+        ipmisession.lastpayload = b'data'
+        ipmisession.nowait = False
+        ipmisession.timeout = 2
+        ipmisession.maxtimeout = 1
+        ipmisession.logontries = 1
+        ipmisession.sessioncontext = 'OPENSESSION'
+        ipmisession.ipmicallback = mock.Mock()
+        ipmisession._mark_broken = mock.Mock()
+        ipmisession._relog = mock.Mock()
+
+        ipmisession._timedout()
+
+        ipmisession._relog.assert_not_called()
+        ipmisession._mark_broken.assert_called_once_with('timeout during login')
+
+    def test_pyghmi_timedout_rakp_state_with_no_logontries_marks_broken(self):
+        ipmisession = object.__new__(session.Session)
+        ipmisession.lastpayload = b'data'
+        ipmisession.nowait = False
+        ipmisession.timeout = 0
+        ipmisession.maxtimeout = 2
+        ipmisession.logontries = 0
+        ipmisession.sessioncontext = 'EXPECTINGRAKP2'
+        ipmisession._mark_broken = mock.Mock()
+        ipmisession._relog = mock.Mock()
+
+        ipmisession._timedout()
+
+        ipmisession._relog.assert_not_called()
+        ipmisession._mark_broken.assert_called_once_with('timeout during login')
