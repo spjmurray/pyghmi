@@ -225,6 +225,34 @@ class SessionRegressionTestCase(unittest.TestCase):
         ipmisession._mark_broken.assert_called_once_with(
             'timeout in established session')
 
+    def test_pyghmi_mark_broken_preserves_original_error_for_waiter(self):
+        # IPMI v2.0 §13.20-§13.24 assigns explicit status/error semantics to
+        # RMCP+/RAKP session setup.  Preserve underlying error text so callers
+        # can act on the specific failure condition.
+        sock = FakeSocket()
+        ipmisession = object.__new__(session.Session)
+        ipmisession.lastpayload = b'data'
+        ipmisession.onlogpayload = b'data'
+        ipmisession.bmc = 'bmc.example.com'
+        ipmisession.userid = b'user'
+        ipmisession.password = b'pass'
+        ipmisession.port = 623
+        ipmisession.kgo = None
+        ipmisession.logging = True
+        ipmisession.errormsg = None
+        ipmisession.broken = False
+        ipmisession.socket = sock
+        ipmisession.socketpool = {sock: 1}
+        waiter = mock.Mock()
+        ipmisession.logonwaiters = [waiter]
+        ipmisession.logout = mock.Mock()
+
+        with mock.patch.object(session.Session, 'keepalive_sessions', new={}):
+            with mock.patch.object(session.Session, 'waiting_sessions', new={}):
+                ipmisession._mark_broken('timeout during login')
+
+        waiter.assert_called_once_with({'error': 'timeout during login'})
+
     def test_pyghmi_logout_prunes_stale_bmc_handler_mapping(self):
         sock = FakeSocket()
         ipmisession = object.__new__(session.Session)

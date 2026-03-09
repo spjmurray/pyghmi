@@ -613,7 +613,8 @@ class Session(object):
         while self.logonwaiters:
             waiter = self.logonwaiters.pop()
             try:
-                waiter({'error': 'Session failed to initialize'})
+                waiter({'error': error or self.errormsg or
+                        'Session failed to initialize'})
             except Exception:
                 pass
 
