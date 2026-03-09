@@ -121,7 +121,10 @@ def define_worker():
                 # about not having to break into the select
                 selectdeadline = _monotonic_time() + 300
                 timeout = 300
-                sockaddrs = _io_graball(iosockets, directediowaiters)
+                try:
+                    sockaddrs = _io_graball(iosockets, directediowaiters)
+                except Exception:
+                    sockaddrs = []
                 for w in iowaiters:
                     w[1].set()
                 iowaiters = []

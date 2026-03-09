@@ -44,3 +44,24 @@ class SessionRegressionTestCase(unittest.TestCase):
                             session._io_wait(-1)
 
         self.assertEqual(0, fake_event.wait_timeout)
+
+    def test_pyghmi_ioworker_survives_io_graball_exception(self):
+        worker = session.define_worker()()
+        graball_calls = []
+
+        def fake_graball(mysockets, directediowaiters):
+            graball_calls.append((mysockets, directediowaiters))
+            if len(graball_calls) == 1:
+                raise RuntimeError('boom')
+            worker.running = False
+            return []
+
+        with mock.patch.object(session, 'iosockets', new=[]):
+            with mock.patch.object(session, 'iothreadwaiters', new=[]):
+                with mock.patch.object(session.select, 'select',
+                                       return_value=([], [], [])):
+                    with mock.patch.object(session, '_io_graball',
+                                           side_effect=fake_graball):
+                        worker.run()
+
+        self.assertEqual(2, len(graball_calls))
