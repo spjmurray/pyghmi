@@ -14,6 +14,7 @@
 
 import ctypes
 import functools
+import logging
 import os
 import socket
 import struct
@@ -114,13 +115,27 @@ def _monotonic_time():
 
 class protect(object):
 
-    def __init__(self, lock):
+    def __init__(self, lock, timeout=2.0):
         self.lock = lock
+        self.timeout = timeout
+
+    def _acquire(self):
+        try:
+            acquired = self.lock.acquire(True, self.timeout)
+        except TypeError:
+            try:
+                acquired = self.lock.acquire(timeout=self.timeout)
+            except TypeError:
+                # Older lock implementations may not support timeout.
+                self.lock.acquire()
+                return
+        if acquired is False:
+            raise RuntimeError('pyghmi lock acquire timeout')
 
     def __call__(self, func):
         @functools.wraps(func)
         def _wrapper(*args, **kwargs):
-            self.lock.acquire()
+            self._acquire()
             try:
                 return func(*args, **kwargs)
             finally:
@@ -128,7 +143,11 @@ class protect(object):
         return _wrapper
 
     def __enter__(self):
-        self.lock.acquire()
+        self._acquire()
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self.lock.release()
+        try:
+            self.lock.release()
+        except RuntimeError:
+            logging.getLogger(__name__).warning(
+                'protect release on unlocked lock (ignored)')

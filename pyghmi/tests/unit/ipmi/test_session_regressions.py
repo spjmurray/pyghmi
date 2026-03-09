@@ -1,7 +1,9 @@
 import unittest
+import threading
 from unittest import mock
 
 from pyghmi.ipmi.private import session
+from pyghmi.ipmi.private import util
 
 
 class FakeEvent(object):
@@ -156,6 +158,21 @@ class SessionRegressionTestCase(unittest.TestCase):
 
         self.assertEqual(2, len(select_calls))
         self.assertEqual([], select_calls[1])
+
+    def test_pyghmi_protect_lock_timeout_is_bounded(self):
+        # IPMI v2.0 §24.1 defines finite shared-session resources on the MC.
+        # A lock dead-end in host software must not become an unbounded wait.
+        lock = threading.Lock()
+        lock.acquire()
+        try:
+            start = session._monotonic_time()
+            with self.assertRaisesRegex(RuntimeError, 'lock acquire timeout'):
+                with util.protect(lock, timeout=0.05):
+                    pass
+            elapsed = session._monotonic_time() - start
+            self.assertLess(elapsed, 1.0)
+        finally:
+            lock.release()
 
     def test_pyghmi_timedout_non_established_does_not_relog(self):
         ipmisession = object.__new__(session.Session)
