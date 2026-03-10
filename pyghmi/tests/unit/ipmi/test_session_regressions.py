@@ -2,6 +2,7 @@ import unittest
 import threading
 from unittest import mock
 
+from pyghmi.ipmi import bmc as bmc_module
 from pyghmi.ipmi.private import session
 from pyghmi.ipmi.private import util
 
@@ -24,6 +25,78 @@ class FakeSocket(object):
 
 
 class SessionRegressionTestCase(unittest.TestCase):
+
+    def test_pyghmi_bmc_activate_clears_stale_activated_without_sol(self):
+        # IPMI v2.0 SOL allows one active payload session at a time.
+        # A stale local activated flag must not permanently block re-activation.
+        class DummyBmc(bmc_module.Bmc):
+            def get_system_guid(self):
+                raise NotImplementedError
+
+            def cold_reset(self):
+                return 0
+
+            def power_off(self):
+                return 0
+
+            def power_on(self):
+                return 0
+
+            def power_cycle(self):
+                return 0
+
+            def power_reset(self):
+                return 0
+
+            def pulse_diag(self):
+                return 0
+
+            def power_shutdown(self):
+                return 0
+
+            def get_power_state(self):
+                return 1
+
+            def is_active(self):
+                return True
+
+            def get_boot_device(self):
+                return 0
+
+            def set_boot_device(self, bootdevice):
+                return None
+
+        bmc = object.__new__(DummyBmc)
+        bmc.iohandler = object()
+        bmc.activated = True
+        bmc.sol = None
+        bmc.port = 623
+
+        session_mock = mock.Mock()
+        with mock.patch.object(
+                bmc_module.console, 'ServerConsole', return_value='solobj'):
+            bmc.activate_payload({}, session_mock)
+
+        self.assertTrue(bmc.activated)
+        self.assertEqual('solobj', bmc.sol)
+        call_kwargs = session_mock.send_ipmi_response.call_args.kwargs
+        self.assertIn('data', call_kwargs)
+        self.assertEqual(12, len(call_kwargs['data']))
+
+    def test_pyghmi_bmc_deactivate_handles_missing_sol_object(self):
+        # Deactivate Payload should clear state even if the console object
+        # was already torn down by an earlier transport break.
+        bmc = object.__new__(bmc_module.Bmc)
+        bmc.iohandler = object()
+        bmc.activated = True
+        bmc.sol = None
+
+        session_mock = mock.Mock()
+        bmc.deactivate_payload({}, session_mock)
+
+        session_mock.send_ipmi_response.assert_called_once_with()
+        self.assertFalse(bmc.activated)
+        self.assertIsNone(bmc.sol)
 
     def test_pyghmi_io_wait_respects_timeout_without_iothread(self):
         fake_event = FakeEvent()

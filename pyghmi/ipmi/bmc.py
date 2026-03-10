@@ -66,22 +66,30 @@ class Bmc(serversession.IpmiServer):
         elif not self.is_active():
             session.send_ipmi_response(code=0x81)
         elif self.activated:
-            session.send_ipmi_response(code=0x80)
-        else:
-            self.activated = True
-            solport = list(struct.unpack('BB', struct.pack('!H', self.port)))
-            session.send_ipmi_response(
-                data=[0, 0, 0, 0, 1, 0, 1, 0] + solport + [0xff, 0xff])
-            self.sol = console.ServerConsole(session, self.iohandler)
+            # A stale activated flag with no SOL object can occur after
+            # abrupt transport loss; treat it as cleared state so a new
+            # activate request can proceed.
+            if self.sol is None:
+                self.activated = False
+            else:
+                session.send_ipmi_response(code=0x80)
+                return
+
+        self.activated = True
+        solport = list(struct.unpack('BB', struct.pack('!H', self.port)))
+        session.send_ipmi_response(
+            data=[0, 0, 0, 0, 1, 0, 1, 0] + solport + [0xff, 0xff])
+        self.sol = console.ServerConsole(session, self.iohandler)
 
     def deactivate_payload(self, request, session):
         if self.iohandler is None:
             session.send_ipmi_response(code=0x81)
-        elif not self.activated:
+        elif not self.activated and self.sol is None:
             session.send_ipmi_response(code=0x80)
         else:
             session.send_ipmi_response()
-            self.sol.close()
+            if self.sol is not None:
+                self.sol.close()
             self.activated = False
             self.sol = None
 
