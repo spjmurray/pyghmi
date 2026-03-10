@@ -1398,7 +1398,12 @@ class Session(object):
             if pkt[1] in self.bmc_handlers:
                 self._handle_ipmi_packet(pkt[0], sockaddr=pkt[1], qent=pkt)
             elif pkt[2] in self.bmc_handlers:
-                self.sessionless_data(pkt[0], pkt[1])
+                try:
+                    iserver = self.bmc_handlers[pkt[2]][0]
+                except (KeyError, TypeError):
+                    continue
+                if hasattr(iserver, 'sessionless_data'):
+                    iserver.sessionless_data(pkt[0], pkt[1])
 
     def _handle_ipmi_packet(self, data, sockaddr=None, qent=None):
         if self.sockaddr is None and sockaddr is not None:

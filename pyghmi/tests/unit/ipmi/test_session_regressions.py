@@ -1,5 +1,6 @@
 import unittest
 import threading
+import collections
 from unittest import mock
 
 from pyghmi.ipmi import bmc as bmc_module
@@ -148,6 +149,33 @@ class SessionRegressionTestCase(unittest.TestCase):
                         worker.run()
 
         self.assertEqual(2, len(graball_calls))
+
+    def test_pyghmi_process_pktqueue_routes_sessionless_to_server_handler(self):
+        ipmisession = object.__new__(session.Session)
+        # Minimal valid packet header for process_pktqueue IPMI check.
+        pkt = (bytearray([6, 0, 255, 7, 0]), ('127.0.0.1', 9000), 'srvsock')
+        ipmisession.pktqueue = collections.deque([pkt])
+        server = mock.Mock()
+        ipmisession.bmc_handlers = {'srvsock': {0: server}}
+        ipmisession._handle_ipmi_packet = mock.Mock()
+
+        ipmisession.process_pktqueue()
+
+        server.sessionless_data.assert_called_once_with(pkt[0], pkt[1])
+        ipmisession._handle_ipmi_packet.assert_not_called()
+
+    def test_pyghmi_process_pktqueue_ignores_non_server_sessionless_handler(self):
+        ipmisession = object.__new__(session.Session)
+        pkt = (bytearray([6, 0, 255, 7, 0]), ('127.0.0.1', 9000), 'srvsock')
+        ipmisession.pktqueue = collections.deque([pkt])
+        ipmisession.bmc_handlers = {'srvsock': {0: object()}}
+        ipmisession._handle_ipmi_packet = mock.Mock()
+
+        # Regression: this path previously could raise AttributeError when
+        # the mapped handler did not expose sessionless_data.
+        ipmisession.process_pktqueue()
+
+        ipmisession._handle_ipmi_packet.assert_not_called()
 
     def test_pyghmi_logout_does_not_double_decrement_socketpool(self):
         sock = FakeSocket()
