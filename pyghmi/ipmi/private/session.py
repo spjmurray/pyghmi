@@ -600,6 +600,14 @@ class Session(object):
         with util.protect(WAITING_SESSIONS):
             Session.waiting_sessions.pop(self, None)
         self._clear_initting_session()
+        # A broken session's peer is unresponsive by definition. Performing the
+        # networked logout handshake here issues raw_command()s whose _cmdwait()
+        # can deadlock when _mark_broken() is reached reentrantly from the I/O
+        # loop (wait_for_rsp -> _timedout -> _mark_broken): the in-flight command
+        # can never clear because this very thread is blocked waiting on it.
+        # Drop `logged` first so logout() skips the network handshake and only
+        # performs local cleanup.
+        self.logged = 0
         self.logout(False)
         self.logging = False
         self.errormsg = error
